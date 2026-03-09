@@ -1,6 +1,0 @@
-{
-  "buildCommand": "pnpm --filter @satkey/web build",
-  "outputDirectory": "web/.next",
-  "framework": "nextjs",
-  "installCommand": "pnpm install --no-frozen-lockfile"
-}
