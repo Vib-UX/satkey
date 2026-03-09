@@ -1,0 +1,21 @@
+{
+  "name": "@satkey/ssh-agent",
+  "version": "0.1.0",
+  "description": "VPS-side daemon managing SSH authorized_keys based on SatKey sessions",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "lint": "tsc --noEmit",
+    "start": "node dist/index.js",
+    "dev": "node --watch dist/index.js"
+  },
+  "dependencies": {
+    "@satkey/protocol": "workspace:*",
+    "fastify": "^5.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0"
+  }
+}

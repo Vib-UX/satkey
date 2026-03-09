@@ -1,0 +1,14 @@
+{
+  "name": "satkey",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Bitcoin Ordinals–based access-control protocol",
+  "scripts": {
+    "build": "pnpm -r build",
+    "clean": "pnpm -r clean",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test"
+  },
+  "keywords": ["bitcoin", "ordinals", "access-control", "ssh"],
+  "license": "MIT"
+}

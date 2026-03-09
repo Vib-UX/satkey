@@ -1,0 +1,19 @@
+{
+  "name": "@satkey/examples",
+  "version": "0.1.0",
+  "private": true,
+  "description": "End-to-end examples for the SatKey protocol",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "lint": "tsc --noEmit",
+    "demo:local": "node dist/local-flow.js"
+  },
+  "dependencies": {
+    "@satkey/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0"
+  }
+}
