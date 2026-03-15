@@ -1,9 +1,9 @@
 import type { VpsConfig } from "./types";
 
-const BASE_SATS_PER_MONTH = 50_000;
-const PER_CPU_SATS = 25_000;
-const PER_GB_RAM_SATS = 10_000;
-const PER_GB_STORAGE_SATS = 200;
+const BASE_SATS_PER_MONTH = 500;
+const PER_CPU_SATS = 100;
+const PER_GB_RAM_SATS = 50;
+const PER_GB_STORAGE_SATS = 1;
 
 const STACK_MULTIPLIER: Record<string, number> = {
   bare: 1.0,
