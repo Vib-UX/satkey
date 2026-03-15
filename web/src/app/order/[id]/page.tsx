@@ -31,12 +31,10 @@ interface OrderData {
   user_ordinals_address: string;
   status: string;
   vps_id: string | null;
-}
-
-interface SshCreds {
-  ssh_user: string;
-  ssh_host: string;
-  ssh_port: number;
+  ssh_user: string | null;
+  ssh_password: string | null;
+  ssh_host: string | null;
+  ssh_port: number | null;
 }
 
 const STATUS_FLOW = [
@@ -50,7 +48,7 @@ const STATUS_LABELS: Record<string, string> = {
   pending_inscription: "Waiting for inscription",
   confirming: "Confirming on-chain",
   provisioning: "Provisioning VPS",
-  ready: "Ready to claim",
+  ready: "VPS Ready",
   failed: "Failed",
 };
 
@@ -62,7 +60,11 @@ export default function OrderPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [claiming, setClaiming] = useState(false);
-  const [sshCreds, setSshCreds] = useState<SshCreds | null>(null);
+  const [challengeCreds, setChallengeCreds] = useState<{
+    ssh_user: string;
+    ssh_host: string;
+    ssh_port: number;
+  } | null>(null);
 
   const fetchOrder = useCallback(async () => {
     try {
@@ -126,7 +128,7 @@ export default function OrderPage() {
       }
 
       const creds = await verifyRes.json();
-      setSshCreds({
+      setChallengeCreds({
         ssh_user: creds.ssh_user,
         ssh_host: creds.ssh_host,
         ssh_port: creds.ssh_port,
@@ -158,6 +160,7 @@ export default function OrderPage() {
     );
   }
 
+  const hasProvisionedCreds = order.ssh_user && order.ssh_password && order.ssh_host;
   const currentStep = STATUS_FLOW.indexOf(order.status as any);
 
   return (
@@ -186,7 +189,7 @@ export default function OrderPage() {
                       !done && !active && "bg-zinc-800 text-zinc-600"
                     )}
                   >
-                    {done ? "✓" : i + 1}
+                    {done ? "\u2713" : i + 1}
                   </div>
                   <span
                     className={clsx(
@@ -219,6 +222,45 @@ export default function OrderPage() {
           </div>
         )}
       </div>
+
+      {/* SSH Credentials (auto-provisioned) */}
+      {hasProvisionedCreds && (
+        <div className="mt-6 card p-6 border-emerald-500/30">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-semibold text-emerald-400">VPS Access Ready</h2>
+          </div>
+
+          <div className="rounded-lg bg-zinc-950 border border-zinc-800 p-4 font-mono text-sm space-y-3">
+            <div>
+              <span className="text-zinc-500">$ </span>
+              <span className="text-zinc-200 select-all">
+                ssh {order.ssh_user}@{order.ssh_host} -p {order.ssh_port}
+              </span>
+            </div>
+            <div className="h-px bg-zinc-800" />
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
+              <dt className="text-zinc-500">Host</dt>
+              <dd className="text-zinc-300 select-all">{order.ssh_host}</dd>
+              <dt className="text-zinc-500">Port</dt>
+              <dd className="text-zinc-300">{order.ssh_port}</dd>
+              <dt className="text-zinc-500">User</dt>
+              <dd className="text-zinc-300 select-all">{order.ssh_user}</dd>
+              <dt className="text-zinc-500">Password</dt>
+              <dd className="text-btc-400 select-all">{order.ssh_password}</dd>
+            </dl>
+          </div>
+
+          <p className="mt-3 text-xs text-zinc-500">
+            Your sat is your key. Access persists as long as you hold the ordinal.
+            Transfer the inscription to revoke.
+          </p>
+        </div>
+      )}
 
       {/* Details */}
       <div className="mt-6 card p-6 space-y-4">
@@ -263,8 +305,8 @@ export default function OrderPage() {
         </dl>
       </div>
 
-      {/* Claim Access */}
-      {order.status === "ready" && !sshCreds && (
+      {/* Claim Access (fallback for orders without auto-provisioned creds) */}
+      {order.status === "ready" && !hasProvisionedCreds && !challengeCreds && (
         <div className="mt-6 card p-6">
           <h2 className="text-lg font-semibold text-zinc-100">Claim Access</h2>
           <p className="mt-1 text-sm text-zinc-400">
@@ -285,14 +327,14 @@ export default function OrderPage() {
                 disabled={wallet.connecting}
                 className="btn-primary w-full"
               >
-                {wallet.connecting ? "Connecting…" : "Connect Xverse Wallet"}
+                {wallet.connecting ? "Connecting\u2026" : "Connect Xverse Wallet"}
               </button>
             ) : (
               <>
                 <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/20 px-3 py-2 flex items-center gap-2">
                   <div className="h-2 w-2 rounded-full bg-emerald-500" />
                   <span className="text-xs text-emerald-400">
-                    Connected: {wallet.ordinalsAddress?.address.slice(0, 12)}…
+                    Connected: {wallet.ordinalsAddress?.address.slice(0, 12)}\u2026
                     {wallet.ordinalsAddress?.address.slice(-6)}
                   </span>
                 </div>
@@ -307,7 +349,7 @@ export default function OrderPage() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                       </svg>
-                      Signing challenge…
+                      Signing challenge\u2026
                     </span>
                   ) : (
                     "Sign Challenge & Claim Access"
@@ -319,8 +361,8 @@ export default function OrderPage() {
         </div>
       )}
 
-      {/* SSH Credentials */}
-      {sshCreds && (
+      {/* SSH Credentials from challenge flow */}
+      {challengeCreds && (
         <div className="mt-6 card p-6 border-emerald-500/30">
           <div className="flex items-center gap-2 mb-4">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400">
@@ -335,17 +377,17 @@ export default function OrderPage() {
             <div>
               <span className="text-zinc-500">$ </span>
               <span className="text-zinc-200">
-                ssh {sshCreds.ssh_user}@{sshCreds.ssh_host} -p {sshCreds.ssh_port}
+                ssh {challengeCreds.ssh_user}@{challengeCreds.ssh_host} -p {challengeCreds.ssh_port}
               </span>
             </div>
             <div className="h-px bg-zinc-800" />
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
               <dt className="text-zinc-500">User</dt>
-              <dd className="text-zinc-300">{sshCreds.ssh_user}</dd>
+              <dd className="text-zinc-300">{challengeCreds.ssh_user}</dd>
               <dt className="text-zinc-500">Host</dt>
-              <dd className="text-zinc-300">{sshCreds.ssh_host}</dd>
+              <dd className="text-zinc-300">{challengeCreds.ssh_host}</dd>
               <dt className="text-zinc-500">Port</dt>
-              <dd className="text-zinc-300">{sshCreds.ssh_port}</dd>
+              <dd className="text-zinc-300">{challengeCreds.ssh_port}</dd>
             </dl>
           </div>
 

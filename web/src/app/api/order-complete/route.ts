@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, type Order, type PaymentRail } from "@/lib/store";
 import type { VpsConfig } from "@/lib/types";
+import { provisionUser } from "@/lib/provision";
 
 function generateId(prefix: string): string {
   const bytes = new Uint8Array(8);
@@ -38,10 +39,10 @@ export async function POST(req: Request) {
     }
 
     const resolvedConfig: VpsConfig = quote?.config ?? clientConfig ?? {
-      cpu: 0,
-      ramGb: 0,
-      storageGb: 0,
-      region: "unknown",
+      cpu: 2,
+      ramGb: 2,
+      storageGb: 50,
+      region: "us-east",
       stack: "bare",
     };
 
@@ -59,9 +60,10 @@ export async function POST(req: Request) {
       accessTokenInscriptionId: null,
       userOrdinalsAddress: ordinals_address,
       userPaymentAddress: payment_address ?? ordinals_address,
-      status: "pending_inscription",
+      status: "provisioning",
       vpsId: null,
       sshUser: null,
+      sshPassword: null,
       sshHost: null,
       sshPort: null,
       createdAt: now,
@@ -70,19 +72,53 @@ export async function POST(req: Request) {
 
     db.orders.set(orderId, order);
 
-    console.log("[SatKey] Order created:", {
+    console.log("[SatKey] Order created, starting provisioning:", {
       orderId,
       txid,
-      configId: config_id,
-      quoteFound: !!quote,
-      paymentRail: payment_rail,
+      config: resolvedConfig,
     });
 
-    return NextResponse.json({
-      order_id: orderId,
-      status: order.status,
-      inscription_txid: txid,
-    });
+    // Provision immediately
+    try {
+      const creds = await provisionUser(orderId, resolvedConfig);
+
+      order.sshUser = creds.username;
+      order.sshPassword = creds.password;
+      order.sshHost = creds.host;
+      order.sshPort = creds.port;
+      order.status = "ready";
+      order.updatedAt = Date.now();
+      db.orders.set(orderId, order);
+
+      console.log("[SatKey] Provisioning complete:", {
+        orderId,
+        username: creds.username,
+        host: creds.host,
+      });
+
+      return NextResponse.json({
+        order_id: orderId,
+        status: "ready",
+        inscription_txid: txid,
+        ssh_user: creds.username,
+        ssh_password: creds.password,
+        ssh_host: creds.host,
+        ssh_port: creds.port,
+      });
+    } catch (provErr: any) {
+      console.error("[SatKey] Provisioning failed:", provErr);
+
+      order.status = "failed";
+      order.updatedAt = Date.now();
+      db.orders.set(orderId, order);
+
+      return NextResponse.json({
+        order_id: orderId,
+        status: "failed",
+        inscription_txid: txid,
+        error: `Provisioning failed: ${provErr.message}`,
+      });
+    }
   } catch (err) {
     console.error("[SatKey] order-complete error:", err);
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });

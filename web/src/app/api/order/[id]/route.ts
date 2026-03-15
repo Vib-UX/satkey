@@ -22,6 +22,10 @@ export async function GET(
     user_ordinals_address: order.userOrdinalsAddress,
     status: order.status,
     vps_id: order.vpsId,
+    ssh_user: order.sshUser,
+    ssh_password: order.sshPassword,
+    ssh_host: order.sshHost,
+    ssh_port: order.sshPort,
     created_at: order.createdAt,
     updated_at: order.updatedAt,
   });

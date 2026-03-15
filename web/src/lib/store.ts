@@ -46,6 +46,7 @@ export interface Order {
   status: OrderStatus;
   vpsId: string | null;
   sshUser: string | null;
+  sshPassword: string | null;
   sshHost: string | null;
   sshPort: number | null;
   createdAt: number;

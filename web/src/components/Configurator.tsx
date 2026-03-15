@@ -26,6 +26,7 @@ type FlowStep =
   | "ln_invoice"
   | "ln_settled"
   | "inscribing"
+  | "provisioning"
   | "submitted"
   | "success_fallback";
 
@@ -52,14 +53,21 @@ interface InvoiceData {
   status: string;
 }
 
+interface SshCreds {
+  ssh_user: string;
+  ssh_password: string;
+  ssh_host: string;
+  ssh_port: number;
+}
+
 export function Configurator() {
   const router = useRouter();
   const wallet = useWallet();
 
   const [config, setConfig] = useState<VpsConfig>({
-    cpu: 4,
-    ramGb: 8,
-    storageGb: 250,
+    cpu: 2,
+    ramGb: 2,
+    storageGb: 50,
     region: "us-east",
     stack: "bare",
   });
@@ -71,6 +79,7 @@ export function Configurator() {
   const [invoice, setInvoice] = useState<InvoiceData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successTxid, setSuccessTxid] = useState<string | null>(null);
+  const [sshCreds, setSshCreds] = useState<SshCreds | null>(null);
   const invoicePollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const effectiveConfig = useMemo<VpsConfig>(
@@ -236,6 +245,7 @@ export function Configurator() {
         onFinish: async (response) => {
           console.log("[SatKey] Inscription success! txId:", response.txId);
           setSuccessTxid(response.txId);
+          setFlowStep("provisioning");
 
           try {
             const res = await fetch("/api/order-complete", {
@@ -254,8 +264,21 @@ export function Configurator() {
 
             if (!res.ok) throw new Error("API returned " + res.status);
             const data = await res.json();
+
+            if (data.ssh_user && data.ssh_password) {
+              setSshCreds({
+                ssh_user: data.ssh_user,
+                ssh_password: data.ssh_password,
+                ssh_host: data.ssh_host,
+                ssh_port: data.ssh_port,
+              });
+            }
+
             setFlowStep("submitted");
-            router.push(`/order/${data.order_id}`);
+
+            if (data.status === "failed") {
+              setError(data.error ?? "VPS provisioning failed");
+            }
           } catch (err) {
             console.warn("[SatKey] order-complete failed, showing fallback:", err);
             setFlowStep("success_fallback");
@@ -568,7 +591,22 @@ export function Configurator() {
                   <button disabled className="btn-primary w-full"><Spinner /> Waiting for Xverse approval&hellip;</button>
                 )}
 
-                {/* STEP: Submitted */}
+                {/* STEP: Provisioning */}
+                {flowStep === "provisioning" && (
+                  <div className="space-y-3">
+                    <div className="rounded-lg bg-btc-500/5 border border-btc-500/20 px-3 py-3 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <Spinner />
+                        <span className="text-sm font-medium text-btc-400">Provisioning your VPS&hellip;</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-zinc-500 text-center">
+                      Creating your server account. This takes a few seconds.
+                    </p>
+                  </div>
+                )}
+
+                {/* STEP: Submitted (with optional creds) */}
                 {flowStep === "submitted" && (
                   <div className="space-y-3">
                     <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/20 px-3 py-2 text-center">
@@ -576,9 +614,14 @@ export function Configurator() {
                         <svg className="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                           <path d="M5 13l4 4L19 7" />
                         </svg>
-                        <span className="text-sm font-medium text-emerald-400">Order submitted</span>
+                        <span className="text-sm font-medium text-emerald-400">
+                          {sshCreds ? "VPS Ready!" : "Order submitted"}
+                        </span>
                       </div>
                     </div>
+
+                    {sshCreds && <CredentialsCard creds={sshCreds} />}
+
                     {successTxid && (
                       <a
                         href={`${MEMPOOL_BASE}/tx/${successTxid}`}
@@ -586,10 +629,13 @@ export function Configurator() {
                         rel="noopener noreferrer"
                         className="block text-center text-xs font-mono text-btc-400 hover:text-btc-300 underline break-all"
                       >
-                        View on mempool.space
+                        View inscription on mempool.space
                       </a>
                     )}
-                    <p className="text-xs text-zinc-500 text-center">Redirecting to order page&hellip;</p>
+
+                    <button onClick={resetFlow} className="btn-ghost w-full text-xs">
+                      Configure another VPS
+                    </button>
                   </div>
                 )}
 
@@ -623,7 +669,7 @@ export function Configurator() {
                     </a>
 
                     <p className="text-xs text-zinc-500 text-center">
-                      Your inscription is on-chain. The order tracking page couldn&apos;t be created (server restart), but your transaction is safe.
+                      Your inscription is on-chain. Provisioning couldn&apos;t complete (server issue), but your transaction is safe.
                     </p>
 
                     <button onClick={resetFlow} className="btn-ghost w-full text-xs">
@@ -694,6 +740,42 @@ function LightningIcon() {
       <svg className="h-5 w-5 text-violet-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
         <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
       </svg>
+    </div>
+  );
+}
+
+function CredentialsCard({ creds }: { creds: SshCreds }) {
+  const sshCommand = `ssh ${creds.ssh_user}@${creds.ssh_host} -p ${creds.ssh_port}`;
+
+  return (
+    <div className="rounded-lg border border-emerald-500/20 bg-zinc-950 p-4 space-y-3">
+      <div className="flex items-center gap-2 mb-2">
+        <svg className="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <rect x="3" y="11" width="18" height="11" rx="2" />
+          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+        </svg>
+        <span className="text-sm font-semibold text-emerald-400">SSH Credentials</span>
+      </div>
+
+      <div className="rounded-lg bg-zinc-900 border border-zinc-800 px-3 py-2 font-mono text-sm">
+        <span className="text-zinc-500">$ </span>
+        <span className="text-zinc-200 select-all">{sshCommand}</span>
+      </div>
+
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-xs">
+        <dt className="text-zinc-500">Host</dt>
+        <dd className="font-mono text-zinc-300 select-all">{creds.ssh_host}</dd>
+        <dt className="text-zinc-500">Port</dt>
+        <dd className="font-mono text-zinc-300">{creds.ssh_port}</dd>
+        <dt className="text-zinc-500">User</dt>
+        <dd className="font-mono text-zinc-300 select-all">{creds.ssh_user}</dd>
+        <dt className="text-zinc-500">Password</dt>
+        <dd className="font-mono text-btc-400 select-all">{creds.ssh_password}</dd>
+      </dl>
+
+      <p className="text-[10px] text-zinc-600">
+        Save these credentials. Your sat is your key &mdash; access persists while you hold the ordinal.
+      </p>
     </div>
   );
 }
