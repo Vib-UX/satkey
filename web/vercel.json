@@ -1,3 +1,5 @@
 {
-  "installCommand": "cd .. && pnpm install --no-frozen-lockfile"
+  "framework": "nextjs",
+  "installCommand": "cd .. && pnpm install --no-frozen-lockfile",
+  "outputDirectory": ".next"
 }
